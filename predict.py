@@ -1,6 +1,7 @@
 import argparse
 import json
 from pathlib import Path
+import cv2
 from ultralytics import YOLO
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -18,16 +19,28 @@ def predict(image_path: str, conf: float = 0.25, save: bool = False) -> dict:
             f"Файл весов не найден: {MODEL_PATH}. Положите 'best.pt' в папку со скриптом."
         )
 
+    # Инициализация модели актуальными весами
     model = YOLO(str(MODEL_PATH))
     results = model.predict(
         source=str(image),
         conf=conf,
-        save=save,
         verbose=False,
     )
 
     detections = []
+    output_image_path = None
+
     for result in results:
+        # При флаге --save генерируем четкие рамки и сохраняем файл
+        if save:
+            save_dir = BASE_DIR / "runs" / "detect"
+            save_dir.mkdir(parents=True, exist_ok=True)
+            output_image_path = save_dir / f"annotated_{image.name}"
+
+            # Рендерим боксы с фиксированной заметной толщиной линий для фото любого разрешения
+            annotated_frame = result.plot(line_width=3, font_size=1.2)
+            cv2.imwrite(str(output_image_path), annotated_frame)
+
         for box in result.boxes:
             class_id = int(box.cls[0].item())
             detections.append(
@@ -38,15 +51,20 @@ def predict(image_path: str, conf: float = 0.25, save: bool = False) -> dict:
                 }
             )
 
-    return {
+    response = {
         "image": image.name,
         "detections": detections,
     }
 
+    if save and output_image_path:
+        response["saved_to"] = str(output_image_path.resolve())
+
+    return response
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Детекция таблеток и капсул на изображении."
+        description="Детекция таблеток (tablet) и капсул (capsule) на изображении."
     )
     parser.add_argument("image", help="Путь к входному изображению")
     parser.add_argument(
@@ -58,7 +76,7 @@ def main():
     parser.add_argument(
         "--save",
         action="store_true",
-        help="Сохранить изображение с размеченными рамками (в runs/detect/predict)",
+        help="Сохранить изображение с отрисованными рамками в runs/detect/",
     )
     args = parser.parse_args()
 
