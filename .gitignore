@@ -35,3 +35,9 @@ data/
 # OS files
 .DS_Store
 Thumbs.db
+
+
+sam2_b.pt
+yolo26n-seg.pt
+yolo26n-cls.pt
+weights/
